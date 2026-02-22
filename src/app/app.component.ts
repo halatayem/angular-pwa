@@ -16,10 +16,16 @@ export class AppComponent implements OnInit {
 
   constructor(private bilarService: BilarService) {}
 
-  ngOnInit() {
+ ngOnInit() {
     this.bilarService.getBilar().subscribe({
-      next: (data) => (this.cars = data),
-      error: (err) => (this.error = 'Kunde inte hämta bilar')
+      next: (data) => {
+        this.cars = data;
+        console.log('Bilar från API:', data);
+      },
+      error: (err) => {
+        console.error(err);
+        this.error = 'Kunde inte hämta bilar';
+      }
     });
   }
 }

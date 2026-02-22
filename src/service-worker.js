@@ -1,5 +1,5 @@
-const STATIC_CACHE = "static-v4";
-const DYNAMIC_CACHE = "dynamic-v4";
+const STATIC_CACHE = "static-v5";
+const DYNAMIC_CACHE = "dynamic-v5";
 
 const STATIC_ASSETS = [
   "/",
@@ -10,17 +10,15 @@ const STATIC_ASSETS = [
   "/assets/icons/icon-512x512.png"
 ];
 
-// INSTALL – static cache
+//STATIC cache vid install
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
+    caches.open(STATIC_CACHE).then((cache) => cache.addAll(STATIC_ASSETS))
   );
   self.skipWaiting();
 });
 
-// ACTIVATE – rensa gamla cacher
+//Rensa gamla cache-versioner
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -34,13 +32,40 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// FETCH – static + dynamic + offline + API
+//FETCH: API cache + static/dynamic + offline fallback
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
   if (!req.url.startsWith("http")) return;
   if (req.method !== "GET") return;
 
+  const url = new URL(req.url);
+
+  //API: /bilar → network-first, cache-fallback
+  if (url.pathname === "/bilar") {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (!res || res.status !== 200) return res;
+          return caches.open(DYNAMIC_CACHE).then((cache) => {
+            cache.put(req, res.clone());
+            return res;
+          });
+        })
+        .catch(() =>
+          caches.match(req).then((cached) => {
+            if (cached) return cached;
+            // om man aldrig varit online: returnera tom lista
+            return new Response("[]", {
+              headers: { "Content-Type": "application/json" },
+            });
+          })
+        )
+    );
+    return;
+  }
+
+  //Allt annat: cache-first, annars nät + dynamic cache
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
@@ -48,19 +73,15 @@ self.addEventListener("fetch", (event) => {
       return fetch(req)
         .then((res) => {
           if (!res || res.status !== 200) return res;
-
           return caches.open(DYNAMIC_CACHE).then((cache) => {
             cache.put(req, res.clone());
             return res;
           });
         })
         .catch(() => {
+          //offline fallback för HTML
           if (req.headers.get("accept")?.includes("text/html")) {
             return caches.match("/assets/offline.html");
-          }
-
-          if (req.url.includes("/api")) {
-            return caches.match(req);
           }
         });
     })

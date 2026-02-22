@@ -14,7 +14,7 @@ export interface Bil {
   providedIn: 'root'
 })
 export class BilarService {
-  private apiUrl = '/bilar';
+  private apiUrl = 'https://backend-api-7f2h.onrender.com/bilar';
 
   constructor(private http: HttpClient) {}
 
