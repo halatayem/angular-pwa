@@ -1,61 +1,56 @@
-const STATIC_CACHE = "static-v3";
-const DYNAMIC_CACHE = "dynamic-v3";
+const STATIC_CACHE = "static-v1";
+const DYNAMIC_CACHE = "dynamic-v1";
 
-const URLS_TO_CACHE = [
+const STATIC_ASSETS = [
   "/",
   "/index.html",
+  "/styles.css",
+  "/main.js",
+  "/polyfills.js",
   "/manifest.webmanifest",
+  "/assets/icons/icon-192x192.png",
+  "/assets/icons/icon-512x512.png",
   "/assets/offline.html"
 ];
 
-// static cache
+// INSTALL
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(URLS_TO_CACHE))
+    caches.open(STATIC_CACHE).then((cache) => {
+      return cache.addAll(STATIC_ASSETS);
+    })
   );
   self.skipWaiting();
 });
 
-// rensa gamla cache-versioner
+// ACTIVATE
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== STATIC_CACHE && k !== DYNAMIC_CACHE)
-          .map((k) => caches.delete(k))
+          .filter((key) => key !== STATIC_CACHE && key !== DYNAMIC_CACHE)
+          .map((key) => caches.delete(key))
       )
     )
   );
   self.clients.claim();
 });
 
-// static + dynamic + offline 
+// FETCH
 self.addEventListener("fetch", (event) => {
-  const req = event.request;
-
-  // Undvik chrome-extension-felet
-  if (!req.url.startsWith("http")) return;
-  if (req.method !== "GET") return;
-
   event.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req)
-        .then((res) => {
-          if (!res || res.status !== 200) return res;
-
-          return caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(req, res.clone());
-            return res;
-          });
-        })
-        .catch(() => {
-          // Offline
-          if (req.headers.get("accept")?.includes("text/html")) {
-            return caches.match("/assets/offline.html");
-          }
+    fetch(event.request)
+      .then((res) => {
+        return caches.open(DYNAMIC_CACHE).then((cache) => {
+          cache.put(event.request, res.clone());
+          return res;
         });
-    })
+      })
+      .catch(() => {
+        return caches.match(event.request).then((cached) => {
+          return cached || caches.match("/assets/offline.html");
+        });
+      })
   );
 });
